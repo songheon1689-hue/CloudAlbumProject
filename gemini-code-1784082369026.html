@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Cloud Photo Archive</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f8f9fa;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 {
+            color: #333;
+        }
+        #auth-btn {
+            padding: 12px 24px;
+            font-size: 16px;
+            background-color: #4285f4;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-bottom: 20px;
+        }
+        #auth-btn:hover {
+            background-color: #357ae8;
+        }
+        /* 갤러리 그리드 레이아웃 */
+        .gallery {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 16px;
+            width: 100%;
+            max-width: 1200px;
+            margin-top: 20px;
+        }
+        .photo-card {
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: transform 0.2s;
+        }
+        .photo-card:hover {
+            transform: translateY(-5px);
+        }
+        .photo-card img {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+            display: block;
+            cursor: pointer;
+        }
+        .photo-name {
+            padding: 10px;
+            font-size: 14px;
+            color: #555;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            overflow: hidden;
+            text-align: center;
+        }
+        #loader {
+            display: none;
+            font-size: 18px;
+            color: #666;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>📸 My Photo Archive</h1>
+    <button id="auth-btn" onclick="handleAuthClick()">구글 드라이브 로그인</button>
+    <div id="loader">사진을 불러오는 중입니다...</div>
+    <div id="gallery" class="gallery"></div>
+
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="https://apis.google.com/js/api.js" async defer></script>
+
+    <script>
+        // ================= [주의: 여기에 본인의 정보 입력] =================
+        const CLIENT_ID = 'YOUR_CLIENT_ID.apps.googleusercontent.com'; 
+        const API_KEY = 'YOUR_API_KEY';
+        // 아카이브 사진들이 들어있는 구글 드라이브 특정 폴더의 ID를 입력하세요.
+        // 주소창의 drive/folders/ 뒤에 나오는 영어+숫자 조합입니다.
+        const FOLDER_ID = 'YOUR_GOOGLE_DRIVE_FOLDER_ID'; 
+        // ===================================================================
+
+        // 구글 드라이브 파일 읽기 권한 범위 지정
+        const SCOPES = 'https://www.googleapis.com/auth/drive.readonly';
+        
+        let tokenClient;
+        let gapiInited = false;
+        let gisiInited = false;
+
+        // 라이브러리 초기화 호출 리스너들
+        window.onload = function() {
+            gapi.load('client', initializeGapiClient);
+            gisInit();
+        };
+
+        // 1. gapi(Google API Client) 초기화
+        async function initializeGapiClient() {
+            await gapi.client.init({
+                apiKey: API_KEY,
+                discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'],
+            });
+            gapiInited = true;
+        }
+
+        // 2. GIS(Google Identity Services) 초기화
+        function gisInit() {
+            tokenClient = google.accounts.oauth2.initTokenClient({
+                client_id: CLIENT_ID,
+                scope: SCOPES,
+                callback: '', // 비워두고 handleAuthClick에서 동적 정의
+            });
+            gisiInited = true;
+        }
+
+        // 3. 로그인 버튼 클릭 핸들러
+        function handleAuthClick() {
+            if (!gapiInited || !gisiInited) {
+                alert('구글 API를 로딩 중입니다. 잠시만 기다려주세요.');
+                return;
+            }
+
+            tokenClient.callback = async (resp) => {
+                if (resp.error !== undefined) {
+                    throw (resp);
+                }
+                document.getElementById('auth-btn').style.display = 'none';
+                document.getElementById('loader').style.display = 'block';
+                await listPhotos();
+            };
+
+            // 사용자 기기에 기존 인증 토큰이 없다면 팝업을 띄워 로그인 진행
+            if (gapi.client.getToken() === null) {
+                tokenClient.requestAccessToken({prompt: 'consent'});
+            } else {
+                tokenClient.requestAccessToken({prompt: ''});
+            }
+        }
+
+        // 4. 구글 드라이브에서 특정 폴더 내 사진 목록 가져오기
+        async function listPhotos() {
+            const galleryDiv = document.getElementById('gallery');
+            const loader = document.getElementById('loader');
+            galleryDiv.innerHTML = '';
+
+            try {
+                // 구글 드라이브 API v3로 특정 폴더 안의 이미지 파일 정보만 요청
+                const response = await gapi.client.drive.files.list({
+                    q: `'${FOLDER_ID}' in parents and mimeType stroke 'image/' and trashed = false`,
+                    fields: 'files(id, name, thumbnailLink, webContentLink)',
+                    pageSize: 100, // 한 번에 불러올 사진 개수 (Pagination 구현 시 활용 가능)
+                });
+
+                const files = response.result.files;
+                loader.style.display = 'none';
+
+                if (!files || files.length === 0) {
+                    galleryDiv.innerHTML = '<p>폴더 안에 사진이 없습니다.</p>';
+                    return;
+                }
+
+                // 기기 자원을 이용해 화면 렌더링 시작 (각자 스마트폰/컴퓨터가 그리드를 직접 구성)
+                files.forEach(file => {
+                    const card = document.createElement('div');
+                    card.className = 'photo-card';
+
+                    const img = document.createElement('img');
+                    // 중요: 로딩 성능 향상을 위해 구글이 미리 압축해 둔 썸네일 링크(thumbnailLink)를 먼저 사용합니다.
+                    // 썸네일 주소 뒤에 =s400 등의 옵션을 주어 썸네일 크기를 조절할 수 있습니다.
+                    img.src = file.thumbnailLink ? file.thumbnailLink.replace(/=s220$/, '=s400') : ''; 
+                    img.alt = file.name;
+                    
+                    // 클릭 시 구글 드라이브 저장소 내 원본 이미지 링크로 새 창 띄우기
+                    img.onclick = () => {
+                        window.open(file.webContentLink, '_blank');
+                    };
+
+                    const name = document.createElement('div');
+                    name.className = 'photo-name';
+                    name.innerText = file.name;
+
+                    card.appendChild(img);
+                    card.appendChild(name);
+                    galleryDiv.appendChild(card);
+                });
+
+            } catch (err) {
+                loader.style.display = 'none';
+                galleryDiv.innerHTML = `<p style="color:red;">에러가 발생했습니다: ${err.message || JSON.stringify(err)}</p>`;
+                console.error(err);
+            }
+        }
+    </script>
+</body>
+</html>
