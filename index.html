@@ -87,10 +87,10 @@
     <script>
         // ================= [주의: 여기에 본인의 정보 입력] =================
         const CLIENT_ID = 'YOUR_CLIENT_ID.apps.googleusercontent.com'; 
-        const API_KEY = 'YOUR_API_KEY';
+        const API_KEY = 'AIzaSyCjtXN_JrypOsq4Ey1RkNG5vc6Y4r7CZA0';
         // 아카이브 사진들이 들어있는 구글 드라이브 특정 폴더의 ID를 입력하세요.
         // 주소창의 drive/folders/ 뒤에 나오는 영어+숫자 조합입니다.
-        const FOLDER_ID = 'YOUR_GOOGLE_DRIVE_FOLDER_ID'; 
+        const FOLDER_ID = '1FzV8oDFLIaVxAC570iD-OLCECzKK3BJ_'; 
         // ===================================================================
 
         // 구글 드라이브 파일 읽기 권한 범위 지정
@@ -109,7 +109,7 @@
         // 1. gapi(Google API Client) 초기화
         async function initializeGapiClient() {
             await gapi.client.init({
-                apiKey: API_KEY,
+                apiKey: AIzaSyCjtXN_JrypOsq4Ey1RkNG5vc6Y4r7CZA0,
                 discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'],
             });
             gapiInited = true;
@@ -118,7 +118,7 @@
         // 2. GIS(Google Identity Services) 초기화
         function gisInit() {
             tokenClient = google.accounts.oauth2.initTokenClient({
-                client_id: CLIENT_ID,
+                client_id: 771920538325-tdl8tqgvec2kp390fnd5r5l13suj0s4m.apps.googleusercontent.com,
                 scope: SCOPES,
                 callback: '', // 비워두고 handleAuthClick에서 동적 정의
             });
